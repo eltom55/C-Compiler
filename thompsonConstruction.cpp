@@ -153,8 +153,16 @@ class NFA_NODE
             isFinal = final;
             transitions.insert({c, vector<NFA_NODE*>({node})});
         }
-        NFA_NODE addtransition(char c, NFA node) {
-
+        NFA_NODE addtransition(char c, NFA_NODE *node)
+        {
+            if(transitions.find(c) == transitions.end())
+            {
+                transitions.insert({c, vector<NFA_NODE*>({node})});
+            }
+            else
+            {
+                transitions[c].push_back(node);
+            }
         }
 
 };
@@ -163,7 +171,8 @@ class NFA_NODE
 class NFA 
 {
     private:
-        bool isStart;
+        //bool isStart;
+        NFA_NODE* StartState;
     
     public:
         NFA() {};
@@ -172,6 +181,7 @@ class NFA
         {
             NFA left;
             NFA right;
+
             if (root->left != nullptr) {
                 left = NFA(root->left);
             }
@@ -189,6 +199,8 @@ class NFA
         {
             NFA_NODE *final = new NFA_NODE(true);
             NFA_NODE *start = new NFA_NODE(c, final, false);
+
+            StartState = start;
         }
 
         void makeNFAFromOp(NFA nfa1, NFA nfa2, char oper)
@@ -209,7 +221,12 @@ class NFA
         }   
         void mergeOr(NFA nfa1, NFA nfa2)
         {
-            
+            NFA_NODE *newStart = new NFA_NODE(false);
+            newStart->addtransition('\0', nfa1.StartState);
+            newStart->addtransition('\0', nfa2.StartState);
+
+            StartState = newStart;
+
         }
 
         void mergeConcat(NFA nfa1, NFA nfa2)
