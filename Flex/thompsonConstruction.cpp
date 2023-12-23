@@ -6,6 +6,9 @@
 #include <unordered_map>
 #include <algorithm>
 #include <unordered_map>
+#include <queue>
+#include <unordered_set>
+
 
 
 
@@ -153,7 +156,7 @@ class NFA_NODE
             isFinal = final;
             transitions.insert({c, vector<NFA_NODE*>({node})});
         }
-        NFA_NODE addtransition(char c, NFA_NODE *node)
+        void addtransition(char c, NFA_NODE *node)
         {
             if(transitions.find(c) == transitions.end())
             {
@@ -164,7 +167,15 @@ class NFA_NODE
                 transitions[c].push_back(node);
             }
         }
+            // Adding a getter function for transitions
+        unordered_map<char, vector<NFA_NODE*>>& getTransitions() {
+            return transitions;
+        }
 
+        // Adding a function to check if the node is final
+        bool isFinalState() {
+            return isFinal;
+        }
 };
 
 
@@ -173,6 +184,8 @@ class NFA
     private:
         //bool isStart;
         NFA_NODE* StartState;
+        vector<NFA_NODE*> FinalStates; 
+        vector<NFA_NODE*> states;
     
     public:
         NFA() {};
@@ -195,12 +208,15 @@ class NFA
                 makeNFAFromOp(left, right, root->data);
         }
 
+
         void makeNFAFromChar(char c)
         {
             NFA_NODE *final = new NFA_NODE(true);
             NFA_NODE *start = new NFA_NODE(c, final, false);
-
+            FinalStates.push_back(final);
             StartState = start;
+            states.push_back(start);
+            states.push_back(final);
         }
 
         void makeNFAFromOp(NFA nfa1, NFA nfa2, char oper)
@@ -213,30 +229,101 @@ class NFA
             {
                 mergeConcat(nfa1,nfa2);
             }
-            else
+            else if (oper == '*')
             {
-                mergeLoop(nfa1, nfa2);
+                mergeLoop(nfa2);
             }
             
         }   
         void mergeOr(NFA nfa1, NFA nfa2)
         {
             NFA_NODE *newStart = new NFA_NODE(false);
+            NFA_NODE *newFinal = new NFA_NODE(true);
             newStart->addtransition('\0', nfa1.StartState);
             newStart->addtransition('\0', nfa2.StartState);
-
+            for(int i =0; i < nfa1.FinalStates.size(); i++)
+            {
+                nfa1.FinalStates[i]->addtransition('\0',newFinal);
+            }
+            for(int i =0; i < nfa2.FinalStates.size(); i++)
+            {
+                nfa2.FinalStates[i]->addtransition('\0',newFinal);
+            }
             StartState = newStart;
+            FinalStates.push_back(newFinal);
+            states.push_back(StartState);
+            for(int i =0; i < nfa1.states.size(); i++)
+            {
+                states.push_back(nfa1.states[i]);
+            }
+            for(int i =0; i < nfa2.states.size(); i++)
+            {
+                states.push_back(nfa2.states[i]);
+            }
+            states.push_back(newFinal);
 
         }
 
         void mergeConcat(NFA nfa1, NFA nfa2)
         {
-            
+            NFA_NODE *ConnectingState = new NFA_NODE(false);
+            for(int i =0; i < nfa1.FinalStates.size(); i++)
+            {
+                nfa1.FinalStates[i]->addtransition('\0',ConnectingState);
+            }
+
+            ConnectingState->addtransition('\0',nfa2.StartState);
+
+            for(int i =0; i < nfa2.FinalStates.size(); i++)
+            {
+                FinalStates.push_back(nfa2.FinalStates[i]);
+            }
+            StartState = nfa1.StartState;
+            for(int i =0; i < nfa1.states.size(); i++)
+            {
+                states.push_back(nfa1.states[i]);
+            }
+            states.push_back(ConnectingState);
+            for(int i =0; i < nfa2.states.size(); i++)
+            {
+                states.push_back(nfa2.states[i]);
+            }
         }
 
-        void mergeLoop(NFA nfa1, NFA nfa2)
+        void mergeLoop(NFA nfa1)
         {
-            
+
+            NFA_NODE *newStart = new NFA_NODE(false);
+            NFA_NODE *newFinal = new NFA_NODE(true);
+            for(int i =0; i < nfa1.FinalStates.size(); i++)
+            {
+                nfa1.FinalStates[i]->addtransition('\0',newFinal);
+            }
+            newStart->addtransition('\0', nfa1.StartState);
+            newFinal->addtransition('\0',newStart);
+            newStart->addtransition('\0', newFinal);
+            FinalStates.push_back(newFinal);
+            StartState = newStart;
+            states.push_back(StartState);
+            for(int i =0; i < nfa1.states.size(); i++)
+            {
+                states.push_back(nfa1.states[i]);
+            }
+            states.push_back(newFinal);
+        }
+
+        NFA_NODE* getStartState() {
+            return StartState;
+        }
+
+        vector<NFA_NODE*> getFinals()
+        {
+            return FinalStates;
+        }
+
+         vector<NFA_NODE*> getStates()
+        {
+            return states;
         }
 };
 
@@ -269,13 +356,41 @@ int main()
     //(a|e)+(c|d|b)*  
     cout << "Tree Structure:" << endl;
     //printTree(firstroot);
+
+    NFA nfa(firstroot);
+
+    for (int i = 0; i < nfa.getStates().size(); i++) {
+        std::cout << "Node " << i << ":\n";
+        for (int j = 0; j < nfa.getFinals().size(); j++) {
+            if (nfa.getFinals()[j] == nfa.getStates()[i]) {
+                cout << "This is a final state\n";
+                break;
+            }
+        }
+        for (const auto& pair : nfa.getStates()[i]->getTransitions()) {
+            for (int j = 0; j < pair.second.size(); j++) {
+                for (int k = 0; k < nfa.getStates().size(); k++) {
+                    if (nfa.getStates()[k] == pair.second[j]) {
+                        std::cout << "Key: " << pair.first << " transitions to node " << k << "\n";
+                        break;
+                    }
+                }
+            }
+        }
+        std::cout << "\n";
+    }
+    //cout << nfa.getStartState()->getTransitions()[0][0] << endl;
+
+    /*
     cout << firstroot->right->data << endl;
     //cout << firstroot->right->left->data << endl;
     cout << firstroot->right->right->data << endl;
     cout << firstroot->right->right->left->data << endl;
     cout << firstroot->right->right->left->right->data << endl;
     cout << firstroot->right->right->left->left->data << endl;
-    return 0;
+    */
+
+   return 0;
 }
 
 
